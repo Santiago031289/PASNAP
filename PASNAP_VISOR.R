@@ -50,7 +50,8 @@ procesar_ap <- function(seccion) {
     categoria <- str_trim(partes[1]) %>%
       str_to_title() %>%
       str_replace("Consultoria", "Consultoría") %>%
-      str_replace("Convenio", "Convenios")
+      str_replace("Convenio", "Convenios") %>%
+      str_replace("Servicios", "Servicios")
     
     texto <- str_trim(partes[2])
     monto <- str_extract(texto, "\\$\\s*[\\d.,]+")
@@ -116,6 +117,15 @@ APH <- st_read("C:/Users/dtimae/Documents/PASNAP/SHAPE/APH.shp") %>%
 
 BVP <- st_read("C:/Users/dtimae/Documents/PASNAP/SHAPE/BVP.shp") %>%
   st_transform(4326)
+# Normalizar nombres
+APH <- APH %>%
+  mutate(nombre_norm = normalizar_nombre(nam)) %>%
+  st_as_sf()
+
+BVP <- BVP %>%
+  mutate(nombre_norm = normalizar_nombre(nombre)) %>%
+  st_as_sf()
+
 
 
 # Crear logos
@@ -157,10 +167,12 @@ create_whatsapp_table <- function(nombre_norm) {
     "Infraestructura" = "🏗️",
     "Bienes" = "📦",
     "Consultoría" = "🧠",
-    "Convenios" = "🤝"
+    "Convenios" = "🤝",
+    "Servicios" = "🛎️"
   )
+
   
-  categorias <- c("Infraestructura", "Bienes", "Consultoría", "Convenios")
+  categorias <- c("Infraestructura", "Bienes", "Consultoría", "Convenios", "Servicios")
   
   bloques <- map_chr(categorias, function(cat) {
     sub <- detalles %>% filter(categoria == cat)
@@ -169,9 +181,14 @@ create_whatsapp_table <- function(nombre_norm) {
     items <- paste0(
       "<li style='margin-bottom: 4px;'>",
       sub$detalle,
-      ifelse(!is.na(sub$monto), paste0(" - <span style='color:#128C7E; font-weight:bold;'>$", format(sub$monto, big.mark = ",", decimal.mark = ".", nsmall = 2), "</span>"), ""),
+      ifelse(!is.na(sub$monto),
+             paste0(" - <span style='color:#128C7E; font-weight:bold;'>$",
+                    formatC(sub$monto, format = "f", digits = 2, big.mark = ",", decimal.mark = "."),
+                    "</span>"),
+             ""),
       "</li>"
     )
+    
     
     paste0(
       "<div style='margin-bottom: 12px;'>",
@@ -200,6 +217,10 @@ download_btn <- tags$a(
   "⬇️ Descargar Excel POA"
 )
 
+# Crear popups para APH y BVP
+popup_aph <- lapply(APH$nombre_norm, create_whatsapp_table)
+popup_bvp <- lapply(BVP$nombre_norm, create_whatsapp_table)
+
 # Mapa
 leaflet(df) %>% 
   addTiles(urlTemplate = "https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}",
@@ -207,13 +228,13 @@ leaflet(df) %>%
            group = "Google Terrain") %>%
   addControl(html = logos_html, position = "topleft") %>%
   addControl(html = download_btn, position = "bottomleft") %>%
-  addPolygons(data = Provincias,
-              fillColor = "#8B4513",
-              fillOpacity = 0.10,
-              color = "#8B4513",
-              weight = 1.5,
-              popup = ~paste('<div style="font-family: Arial; font-size: 13px;"><b>Provincia:</b><br>', PROVINCIA, '</div>'),
-              group = "Provincias") %>%
+  {if(exists("Provincias")) addPolygons(., data = Provincias,
+                                        fillColor = "#8B4513",
+                                        fillOpacity = 0.10,
+                                        color = "#8B4513",
+                                        weight = 1.5,
+                                        popup = ~paste('<div style="font-family: Arial; font-size: 13px;"><b>Provincia:</b><br>', PROVINCIA, '</div>'),
+                                        group = "Provincias") else .} %>%
   addPolygons(data = Areas_Priorizadas_filtered,
               fillColor = "#FF5733",
               fillOpacity = 0.7,
@@ -221,23 +242,36 @@ leaflet(df) %>%
               weight = 3,
               popup = lapply(Areas_Priorizadas_filtered$nombre_norm, create_whatsapp_table),
               group = "Áreas Protegidas") %>%
+  addSearchFeatures(
+    targetGroups = c("Provincias"),
+    options = searchOptions(
+      zoom = 10,
+      position = "topleft",
+    )
+  ) %>%
   addPolygons(data = APH,
               fillColor = "#63e4d9",
               fillOpacity = 0.5,
               color = "#0e0680",
               weight = 2,
-              popup = ~paste('<div style="font-family: Arial; font-size: 13px;"><b>APH:</b><br>', nam, '</div>'),
+              popup = popup_aph,
               group = "APH") %>%
-  addPolygons(data = BVP,
-              fillColor = "#62f73e",
-              fillOpacity = 0.5,
-              color = "#128006",
-              weight = 2,
-              popup = ~paste('<div style="font-family: Arial; font-size: 13px;"><b>BVP:</b><br>', nombre, '</div>'),
-              group = "BVP") %>%
   
-  addCircleMarkers(data = df,
-                   lng = ~lon,
+  addPolygons(data = BVP,
+              fillColor = "#128006",
+              fillOpacity = 0.5,
+              color = "#62f73e",
+              weight = 2,
+              popup = popup_bvp,
+              group = "BVP") %>%
+  addEasyButton(
+    easyButton(
+      icon = "fa-globe", 
+      title = "Volver a vista general",
+      onClick = JS("function(btn, map){ map.setView([-1.8312, -78.1834], 6); }")
+    )
+  ) %>%
+  addCircleMarkers(lng = ~lon,
                    lat = ~lat,
                    popup = ~paste0(
                      '<div style="font-family: Arial; width: 280px; background: white; border-radius: 10px; overflow: hidden;">',
@@ -270,5 +304,12 @@ leaflet(df) %>%
              position = "bottomright",
              width = 120,
              height = 120,
-             minimized = FALSE)
+             minimized = FALSE) %>%
+  addLegend(
+    position = "bottomleft",
+    colors = c("#FF5733", "#128006", "#63e4d9"),
+    labels = c("Áreas Priorizadas", "BVP", "APH"),
+    title = "Capas",
+    opacity = 1
+  )
 
