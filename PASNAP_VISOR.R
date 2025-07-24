@@ -144,7 +144,7 @@ df <- data.frame(
   win = c("Muelle San Lorenzo", "Majagual", "Manglares Churute", "Arenillas"),
   image = c("https://github.com/Santiago031289/EPCONST/raw/main/San%20Lorenzo.jpeg",
             "https://github.com/Santiago031289/EPCONST/raw/main/Cayapas-Mataje.jpeg",
-            "https://github.com/Santiago031289/EPCONST/raw/main/PASNAP1.jpeg",
+            "https://github.com/Santiago031289/EPCONST/raw/main/Puerto_Manglares.jpeg",
             "https://github.com/Santiago031289/EPCONST/raw/main/Arenillas.jpeg"),
   lat = c(1.292287, 1.173609, -2.42730, -3.566207),
   lon = c(-78.836031, -79.079381, -79.66179, -80.142660)
@@ -250,7 +250,7 @@ leaflet(df) %>%
     )
   ) %>%
   addPolygons(data = APH,
-              fillColor = "#63e4d9",
+              fillColor = "#3e63f7",
               fillOpacity = 0.5,
               color = "#0e0680",
               weight = 2,
@@ -258,9 +258,9 @@ leaflet(df) %>%
               group = "APH") %>%
   
   addPolygons(data = BVP,
-              fillColor = "#128006",
+              fillColor = "#bff73e",
               fillOpacity = 0.5,
-              color = "#62f73e",
+              color = "#128006",
               weight = 2,
               popup = popup_bvp,
               group = "BVP") %>%
